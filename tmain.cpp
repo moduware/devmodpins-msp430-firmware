@@ -12,12 +12,14 @@
 #define ADC 2
 #define PWM 3
 
+#define PIN_UPDATE_LENGTH 4
 #define CONFIGURATION_LENGTH 16
 #define CACHE_LENGTH 19
 #define SEND_BUFFER 64
 unsigned char configuration[CONFIGURATION_LENGTH] = {0};
 unsigned char cache[CACHE_LENGTH] = {0};
 unsigned char send_buffer[SEND_BUFFER] = {0};
+unsigned int updated_pins;
 
 // RECEIVE command - use range from 0x2700 to 0x27ff
 //**Suggested**
@@ -76,12 +78,28 @@ void PinConfigReceivedHandler (unsigned char*pData, unsigned char len) {
     }
 }
 
-unsigned char* make_pin_update(int pin_numbers, int pin_type, unsigned char value1, unsigned char value2) {
-    // TODO: form 4 byte array of pin description
+void add_to_send_buffer(unsigned char* update) {
+    // add 4 byte array of pin description to send buffer
+    unsigned int current_index = updated_pins * PIN_UPDATE_LENGTH;
+    for(unsigned int i = 0; i < PIN_UPDATE_LENGTH; i++) {
+        send_buffer[current_index + i] = update[i];
+    }
 }
 
-void add_to_send_buffer(unsigned char*) {
-    // TODO: add 4 byte array of pin description to send buffer
+void make_pin_update(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
+    // form 4 byte array of pin description
+    unsigned char update[4] = {0};
+    update[0] = pin_number;
+    update[1] = pin_type;
+
+    if(pin_type == GPIO_IN) {
+        update[2] = value1;
+    } else if(pin_type == ADC) {
+        update[2] = value1;
+        update[3] = value2;
+    }
+
+    add_to_send_buffer(update);
 }
 
 bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
@@ -111,7 +129,7 @@ bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned 
 }
 
 void np_api_loop() {
-    unsigned int updated_pins = 0;
+    updated_pins = 0;
 
 	for(unsigned int pin_number=0; pin_number<CONFIGURATION_LENGTH; pin_number++) {
 	    if(pin_number == 3) continue;
