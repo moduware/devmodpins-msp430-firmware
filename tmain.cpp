@@ -143,3 +143,12 @@ void np_api_loop() {
 
 	delay(500);
 }
+
+
+void np_api_start() {
+    //Start module's function
+}
+
+void np_api_stop() {
+    // Stop module's function
+}
