@@ -56,6 +56,32 @@ void np_api_setup() {
 }
 
 
+void memcpy(void *dest, void *src, unsigned int n)
+{
+   // Typecast src and dest addresses to (char *)
+   char *csrc = (char *)src;
+   char *cdest = (char *)dest;
+
+   // Copy contents of src[] to dest[]
+   for (int i=0; i<n; i++) {
+       cdest[i] = csrc[i];
+   }
+}
+
+int memcmp(const void *x, const void *y, unsigned int n)
+{
+    const int* x8 = (const int*)x;
+    const int* y8 = (const int*)y;
+    unsigned int i;
+    for(i=0; i<n; i++) {
+        if(x8[i] < y8[i])
+            return -1;
+        else if(x8[i] > y8[i])
+            return 1;
+    }
+    return 0;
+}
+
 void np_api_loop() {
 	// This loop will run continuously while the MCU is not in sleep mode or has a stop condition
 
@@ -72,7 +98,7 @@ void np_api_loop() {
 	unsigned char send = 0;
 
 	unsigned char inputvalue;
-	int i;
+	unsigned int i;
 	for ( i = 0; i < PIN_NUMBERS; i ++ ) {	//fill in pin information
 			//read GPIO input values
 			if ( GPIO_Pins[i] == 1 ){
@@ -92,16 +118,15 @@ void np_api_loop() {
 				sender_buffer[i*2+1] = value&0xff; //get remaining bits (2) and send value to following buffer element
 			}
 	}
-	for (i = 0; i < PIN_NUMBERS+3 ; i ++ ){
 
-		if(sender_buffer[i] != old_sender_buffer[i]){
-			send = 1;
-		}
-		old_sender_buffer[i] = sender_buffer[i];
-	}
-	if(send == 1){
-
-		np_api_upload(0x2800,sender_buffer, PIN_NUMBERS+3);
+	// Checking if our new data somehow different from old data
+	int changes = memcmp(old_sender_buffer, sender_buffer, sizeof(sender_buffer));
+	// if there are changes
+	if(changes != 0) {
+	    // saving new old buffer
+	    memcpy(old_sender_buffer, sender_buffer, sizeof(sender_buffer));
+	    // and sending data
+	    np_api_upload(0x2800, sender_buffer, PIN_NUMBERS + 3);
 	}
 
 	delay(500);
