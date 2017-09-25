@@ -1,37 +1,42 @@
 /*
- * tmain.cpp
- * MaKe iT eaSy
+* devmodpins msp430
+*/
+
+/*
+ * Library declaration
  */
-//libraries
 #include <np_module_mdk_v1.h>
-#include "t_my_app.h"
 #include "NCN_GPIO.h"
 
+/*
+ * variables, identifier and pin declaration
+ */
 #define lenght 2
 #define PIN_NUMBERS 16
 extern unsigned char GPIO_Pins[];
 unsigned char old_sender_buffer[PIN_NUMBERS+3] = {0};
 unsigned char sender_buffer[PIN_NUMBERS+3] = {0};
+unsigned char old_pData[PIN_NUMBERS] = {0};
+unsigned char GPIO_Pins[PIN_NUMBERS] = {0};
 
-// RECEIVE command - use range from 0x2700 to 0x27ff
-//**Suggested**
-//odd number for command number
-//even number for response command number
-//define function's command code at t_my_app.c
+/*
+ * receiving functions declaration
+ */
+void Settings (unsigned char*pData, unsigned char len);
+void PWM (unsigned char*pData, unsigned char len);
 
-const MDK_REGISTER_CMD my_cmd_func_table[lenght] = { //Specify table's length according to number of commands used
-		{0x2700, Settings }, // Command's name can be changed
+const MDK_REGISTER_CMD PinType[lenght] = {
+		{0x2700, Settings },
 		{0x2702, PWM }
 };
 
 void np_api_setup() {
-	//Libraries, divers and PIN initialization
-	//np_api_set_app_version(x, x, x); -- optional
 
+    // default PIN setting as input
 	pinMode(0, INPUT);
 	pinMode(1, INPUT);
 	pinMode(2, INPUT);
-//	pinMode(3, INPUT);	-- PIN 3 is not possible to access, skip it
+//	pinMode(3, INPUT); - PIN used by mdk, not accessible
 	pinMode(4, INPUT);
 	pinMode(5, INPUT);
 	pinMode(6, INPUT);
@@ -45,29 +50,12 @@ void np_api_setup() {
 	pinMode(14, INPUT);
 	pinMode(15, INPUT);
 
-	// If the command number is out of the range 0x2700 - 0x27ff, a FAIL message is displayed
-	// Handle the fail event here!
-
-	if ( np_api_register((MDK_REGISTER_CMD*)my_cmd_func_table, lenght) == MDK_REGISTER_FAIL ) { //communication check
+	if ( np_api_register((MDK_REGISTER_CMD*)PinType, lenght) == MDK_REGISTER_FAIL ) {
 	}
-
-	// After setting this command, np_api_loop() will run just once
-	//np_api_pm_automode_set();
 }
 
 
 void np_api_loop() {
-	// This loop will run continuously while the MCU is not in sleep mode or has a stop condition
-
-	/*SEND command -- use 0x2800
-	*np_api_upload(0x2800, "I am sensor value!", 2) -- sensor value is unsigned char
-	*
-	*np_api_pm_automode_set(void) -- power save mode
-	**In auto power save mode, the loop runs once
-	*to run it one more time call "np_api_run_loop_once();"
-	*To exit auto power save mode call "np_api_pm_automode_clear()"
-	*delay(10);
-	*/
 
 	unsigned char send = 0;
 
@@ -108,9 +96,55 @@ void np_api_loop() {
 }
 
 void np_api_start() {
-	//Start module's function
 }
 
 void np_api_stop() {
-	// Stop module's function
+}
+
+
+void Settings (unsigned char*pData, unsigned char len) {
+
+    int i;
+    for (i = 0; i < PIN_NUMBERS; i ++) {
+            if(pData[i] == 0 && pData[i] != old_pData[i]){
+                GPIO_Pins[i] = 0;
+                pinMode(i,INPUT);
+            }else if(pData[i] == 1 && pData[i] != old_pData[i]){
+                GPIO_Pins[i] = 1;
+                pinMode(i,INPUT);
+            }else if(pData[i] == 2 && pData[i] != old_pData[i]){
+                GPIO_Pins[i] = 2;
+                pinMode(i,OUTPUT);
+                digitalWrite(i,LOW);
+            }else if(pData[i] == 3 && pData[i] != old_pData[i]){
+                GPIO_Pins[i] = 2;
+                pinMode(i,OUTPUT);
+                digitalWrite(i,HIGH);
+            }else if(pData[i] == 4 && pData[i] != old_pData[i]){
+                GPIO_Pins[i] = 3;
+                pinMode(i,INPUT);
+            }else if(pData[i] == 5 && pData[i] != old_pData[i]){
+                GPIO_Pins[i] = 4;
+                pinMode(i,OUTPUT);
+            }
+            old_pData[i] = pData[i];
+    }
+        // Feedback to Command 0x2701
+        unsigned char response = 0x00;
+        np_api_upload(0x2701, &response, 1);
+}
+
+void PWM (unsigned char*pData, unsigned char len) {
+
+    if (GPIO_Pins[4] == 4){
+        analogFrequencySet(4,180);
+        analogWrite(4,pData[0]);
+    }
+    if (GPIO_Pins[5] == 4){
+        analogFrequencySet(5,180);
+        analogWrite(5,pData[1]);
+    }
+    // Feedback to Command 0x2703
+    unsigned char response = 0x00;
+    np_api_upload(0x2703, &response, 1);
 }
