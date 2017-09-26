@@ -1,41 +1,32 @@
 /*
- * tmain.cpp
- * MaKe iT eaSy
+ * devmodpins msp430
  */
-//libraries
 #include <np_module_mdk_v1.h>
 #include "NCN_GPIO.h"
 
-
+//Configures pins to one of modes: GPIO I, GPIO O, ADC or PWM
 #define GPIO_IN 0
 #define GPIO_OUT 1
 #define ADC 2
 #define PWM 3
 
 #define PIN_UPDATE_LENGTH 4
-#define CONFIGURATION_LENGTH 16
-#define CACHE_LENGTH 19
-#define SEND_BUFFER 64
+#define CONFIGURATION_LENGTH 16 // 16 PIN
+#define CACHE_LENGTH 19 // 16 pins, 3 ADC PINS - 2bye per ADC PIN
+#define SEND_BUFFER 64 // 16 pins, 4 bytes per PIN
 unsigned char configuration[CONFIGURATION_LENGTH] = {0};
 unsigned char cache[CACHE_LENGTH] = {0};
 unsigned char send_buffer[SEND_BUFFER] = {0};
 unsigned int updated_pins;
 
-// RECEIVE command - use range from 0x2700 to 0x27ff
-//**Suggested**
-//odd number for command number
-//even number for response command number
-//define function's command code at t_my_app.c
 
 void PinConfigReceivedHandler (unsigned char*pData, unsigned char len);
 
-const MDK_REGISTER_CMD my_cmd_func_table[1] = { //Specify table's length according to number of commands used
+const MDK_REGISTER_CMD my_cmd_func_table[1] = {
         {0x2700, PinConfigReceivedHandler}
 };
 
 void np_api_setup() {
-	//Libraries, divers and PIN initialization
-	//np_api_set_app_version(x, x, x); -- optional
 
 	pinMode(0, INPUT);
 	pinMode(1, INPUT);
@@ -54,14 +45,15 @@ void np_api_setup() {
 	pinMode(14, INPUT);
 	pinMode(15, INPUT);
 
-	// If the command number is out of the range 0x2700 - 0x27ff, a FAIL message is displayed
-	// Handle the fail event here!
 
 	if ( np_api_register((MDK_REGISTER_CMD*)my_cmd_func_table, 1) == MDK_REGISTER_FAIL ) { //communication check
 	}
 
 }
 
+/*
+ * receive data from tile, detect pin type and set pin type to corresponding pin
+ */
 void PinConfigReceivedHandler (unsigned char*pData, unsigned char len) {
     // update pin type in configuration bytes
     unsigned int pin_number = pData[0];
@@ -86,12 +78,12 @@ void add_to_send_buffer(unsigned char* update) {
     }
 }
 
+//function to update PIN information
 void make_pin_update(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
     // form 4 byte array of pin description
     unsigned char update[4] = {0};
     update[0] = pin_number;
     update[1] = pin_type;
-
     if(pin_type == GPIO_IN) {
         update[2] = value1;
     } else if(pin_type == ADC) {
@@ -102,6 +94,7 @@ void make_pin_update(int pin_number, int pin_type, unsigned char value1, unsigne
     add_to_send_buffer(update);
 }
 
+// store pin information to send to tile - 4 byte per PIN configuration
 bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
     // TODO: improve cash mapping to make it simpler and easier to understand
     unsigned int cache_index;
@@ -130,8 +123,9 @@ bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned 
 
 void np_api_loop() {
     updated_pins = 0;
-
+    //slect data to send to tile when PIN type is GPIO OUT or ADC
 	for(unsigned int pin_number=0; pin_number<CONFIGURATION_LENGTH; pin_number++) {
+	    //skip PIN 3 as is not in use
 	    if(pin_number == 3) continue;
 
 	    bool is_updated;
@@ -151,7 +145,7 @@ void np_api_loop() {
 	        updated_pins++;
 	    }
 	}
-
+	//send data to tile just when PIN type is different than previous PIN configuration
 	if(updated_pins != 0) {
 	    int data_length = updated_pins * 4;
 
@@ -164,9 +158,7 @@ void np_api_loop() {
 
 
 void np_api_start() {
-    //Start module's function
 }
 
 void np_api_stop() {
-    // Stop module's function
 }
