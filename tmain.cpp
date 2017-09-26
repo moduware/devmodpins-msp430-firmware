@@ -22,7 +22,7 @@ unsigned int updated_pins;
 
 void PinConfigReceivedHandler (unsigned char*pData, unsigned char len);
 
-const MDK_REGISTER_CMD my_cmd_func_table[1] = {
+const MDK_REGISTER_CMD pin_config[1] = {
         {0x2700, PinConfigReceivedHandler}
 };
 
@@ -45,10 +45,8 @@ void np_api_setup() {
 	pinMode(14, INPUT);
 	pinMode(15, INPUT);
 
-
-	if ( np_api_register((MDK_REGISTER_CMD*)my_cmd_func_table, 1) == MDK_REGISTER_FAIL ) { //communication check
+	if ( np_api_register((MDK_REGISTER_CMD*)pin_config, 1) == MDK_REGISTER_FAIL ) {
 	}
-
 }
 
 /*
@@ -78,7 +76,7 @@ void add_to_send_buffer(unsigned char* update) {
     }
 }
 
-//function to update PIN information
+//update PIN information
 void make_pin_update(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
     // form 4 byte array of pin description
     unsigned char update[4] = {0};
@@ -123,7 +121,7 @@ bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned 
 
 void np_api_loop() {
     updated_pins = 0;
-    //slect data to send to tile when PIN type is GPIO OUT or ADC
+    //select data to send to tile when PIN type is GPIO OUT or ADC
 	for(unsigned int pin_number=0; pin_number<CONFIGURATION_LENGTH; pin_number++) {
 	    //skip PIN 3 as is not in use
 	    if(pin_number == 3) continue;
