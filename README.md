@@ -8,11 +8,11 @@ Different PIN modes can be selected according to MSP430 GPIO library configurati
 By default configuration all pins are set as GPIO input, but pin settings can be easily changed on the tile
 ![devmod_tile]
 
-Tapping on the middle column changes PIN mode
+Tapping on the middle column changes pin mode
 * **GPIO I** displays **'LOW'** or **'HIGH'** on pin change
 * Tap once on any pin to change mode from GPIO I to GPIO O. **GPIO O** mode allows to change to **'LOW'** or **'HIGH'** values
-* Tap twice on 0,1 and 2 pins to change the mode from GPIO I to ADC. ADC mode displays a decimal value between 0 and 3.3V
-* Tap twice on 4 and 5 pins to set **PWM** mode. On PWM enter values from 0 to 100% to change duty cycle 
+* Tap twice on pin 0,1 and 2 to change the mode from GPIO I to ADC. **ADC** mode displays a decimal value between 0 and 3.3V
+* Tap twice on PIN 4 and 5 to set **PWM** mode. On PWM enter values from 0 to 100% to change duty cycle 
 
 ![pin_settings]
 
