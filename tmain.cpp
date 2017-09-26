@@ -20,10 +20,10 @@ unsigned char send_buffer[SEND_BUFFER] = {0};
 unsigned int updated_pins;
 
 
-void PinConfigReceivedHandler (unsigned char*pData, unsigned char len);
+void PinConfigurationReceivedHandler (unsigned char*pData, unsigned char len);
 
-const MDK_REGISTER_CMD pin_config[1] = {
-        {0x2700, PinConfigReceivedHandler}
+const MDK_REGISTER_CMD pin_configuration[1] = {
+        {0x2700, PinConfigurationReceivedHandler}
 };
 
 void np_api_setup() {
@@ -45,24 +45,25 @@ void np_api_setup() {
 	pinMode(14, INPUT);
 	pinMode(15, INPUT);
 
-	if ( np_api_register((MDK_REGISTER_CMD*)pin_config, 1) == MDK_REGISTER_FAIL ) {
+	if ( np_api_register((MDK_REGISTER_CMD*)pin_configuration, 1) == MDK_REGISTER_FAIL ) {
 	}
 }
 
 /*
  * receive data from tile, detect pin type and set pin type to corresponding pin
  */
-void PinConfigReceivedHandler (unsigned char*pData, unsigned char len) {
+void PinConfigurationReceivedHandler (unsigned char*pData, unsigned char len) {
     // update pin type in configuration bytes
     unsigned int pin_number = pData[0];
     unsigned int pin_type = pData[1];
     configuration[pin_number] = pin_type;
 
-    // set pin to value if applicable (GPIO In - 0 or PWM - 3)
-    if(pin_type == GPIO_IN) {
+    // set pin to value if applicable (GPIO out - 1 or PWM - 3)
+    if(pin_type == GPIO_OUT) {
         pinMode(pin_number, OUTPUT);
         digitalWrite(pin_number, pData[2]);
     } else if(pin_type == PWM) {
+        //set frequency hz
         analogFrequencySet(4,180);
         analogWrite(pin_number, pData[2]);
     }
@@ -82,6 +83,8 @@ void make_pin_update(int pin_number, int pin_type, unsigned char value1, unsigne
     unsigned char update[4] = {0};
     update[0] = pin_number;
     update[1] = pin_type;
+
+    //fill buffer to send to tile on GPIO IN and ADC modes
     if(pin_type == GPIO_IN) {
         update[2] = value1;
     } else if(pin_type == ADC) {
@@ -103,8 +106,8 @@ bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned 
         // For rest of pins we need to shift 3 additional bytes for first 3 pins and skip pin 3
         cache_index = pin_number + 2;
     }
-
-    if(pin_type == GPIO_OUT) {
+    //fill pin update on GPIO input and ADC modes
+    if(pin_type == GPIO_IN) {
         if(cache[cache_index] != value1) {
             make_pin_update(pin_number, pin_type, value1, 0x00);
             return true;
@@ -127,13 +130,13 @@ void np_api_loop() {
 	    if(pin_number == 3) continue;
 
 	    bool is_updated;
-	    if(configuration[pin_number] == GPIO_OUT) {
-	        // send GPIO Out value
+	    if(configuration[pin_number] == GPIO_IN) {
+	        // send GPIO input value
 	        unsigned char value = digitalRead(pin_number);
-	        is_updated = send_pin_data(pin_number, GPIO_OUT, value, 0x00);
+	        is_updated = send_pin_data(pin_number, GPIO_IN, value, 0x00);
 	    } else if(configuration[pin_number] == ADC) {
 	        // send ADC value
-	        unsigned int value = digitalRead(pin_number);
+	        unsigned int value = analogRead(pin_number);
 	        unsigned char upper_byte = (value >> 8) & 0xfff;
 	        unsigned char lower_byte = value & 0xff;
 	        is_updated = send_pin_data(pin_number, ADC, upper_byte, lower_byte);
