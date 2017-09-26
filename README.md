@@ -16,7 +16,7 @@ Tapping on the middle column changes PIN mode
 
 ![pin_settings]
 
-Fin code for [DevMod pin tile](https://github.com/nexpaq/tile-devmod-pins)
+Find code for [DevMod pin tile](https://github.com/nexpaq/tile-devmod-pins)
 
 [pin_table]:https://github.com/nexpaq/devmodpins-msp430-firmware/blob/v2-update/images/pin_table.PNG
 [devmod_tile]:https://github.com/nexpaq/devmodpins-msp430-firmware/blob/v2-update/images/devmod_tile.PNG
