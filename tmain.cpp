@@ -140,9 +140,9 @@ void np_api_loop() {
 	    } else if(configuration[pin_number] == ADC) {
 	        // send ADC value
 	        unsigned int value = analogRead(pin_number);
-	        unsigned char upper_byte = (value >> 8) & 0xfff;
+	        unsigned char upper_byte = (value >> 8) & 0xff;
 	        unsigned char lower_byte = value & 0xff;
-	        is_updated = send_pin_data(pin_number, ADC, upper_byte, lower_byte);
+	        is_updated = send_pin_data(pin_number, ADC, upper_byte, pin_adc[pin_number]);//lower_byte);
 	    }
 
 	    if(is_updated) {
@@ -157,7 +157,7 @@ void np_api_loop() {
 	}
 
 
-	delay(500);
+	delay(150);
 }
 
 
