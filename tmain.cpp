@@ -110,11 +110,14 @@ bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned 
     if(pin_type == GPIO_IN) {
         if(cache[cache_index] != value1) {
             make_pin_update(pin_number, pin_type, value1, 0x00);
+            cache[cache_index] = value1;
             return true;
         }
     } else if(pin_type == ADC) {
         if(cache[cache_index] != value1 || cache[cache_index + 1] != value2) {
             make_pin_update(pin_number, pin_type, value1, value2);
+            cache[cache_index] = value1;
+            cache[cache_index + 1] = value2;
             return true;
         }
     }
