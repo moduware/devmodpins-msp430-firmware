@@ -18,6 +18,7 @@ typedef enum {
 	HIGH = 0x01,
 	LOW = 0x00
 }PIN_MODE;
+static unsigned char pin_adc[3];
 /*
 *******   Pin list    *******
 ** pin ** Port.pin ****** Mode *******************pin NO.*********
