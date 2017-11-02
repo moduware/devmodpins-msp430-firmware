@@ -59,7 +59,9 @@ void PinConfigurationReceivedHandler (unsigned char*pData, unsigned char len) {
     configuration[pin_number] = pin_type;
 
     // set pin to value if applicable (GPIO out - 1 or PWM - 3)
-    if(pin_type == GPIO_OUT) {
+    if(pin_type == GPIO_IN || pin_type == ADC) {
+        pinMode(pin_number, INPUT);
+    } else if(pin_type == GPIO_OUT) {
         pinMode(pin_number, OUTPUT);
         digitalWrite(pin_number, pData[2]);
     } else if(pin_type == PWM) {
