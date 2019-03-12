@@ -1,32 +1,32 @@
 /*
- * tmain.cpp
- * MaKe iT eaSy
+ * devmodpins msp430
  */
-//libraries
 #include <np_module_mdk_v1.h>
-#include "t_my_app.h"
 #include "NCN_GPIO.h"
 
-#define lenght 2
-#define PIN_NUMBERS 16
-extern unsigned char GPIO_Pins[];
-unsigned char old_sender_buffer[PIN_NUMBERS+3] = {0};
-unsigned char sender_buffer[PIN_NUMBERS+3] = {0};
+//Configures pins to one of modes: GPIO I, GPIO O, ADC or PWM
+#define GPIO_IN 0
+#define GPIO_OUT 1
+#define ADC 2
+#define PWM 3
 
-// RECEIVE command - use range from 0x2700 to 0x27ff
-//**Suggested**
-//odd number for command number
-//even number for response command number
-//define function's command code at t_my_app.c
+#define PIN_UPDATE_LENGTH 4
+#define CONFIGURATION_LENGTH 16 // 16 PIN
+#define CACHE_LENGTH 19 // 16 pins, 3 ADC PINS - 2bye per ADC PIN
+#define SEND_BUFFER 64 // 16 pins, 4 bytes per PIN
+unsigned char configuration[CONFIGURATION_LENGTH] = {0};
+unsigned char cache[CACHE_LENGTH] = {0};
+unsigned char send_buffer[SEND_BUFFER] = {0};
+unsigned int updated_pins;
 
-const MDK_REGISTER_CMD my_cmd_func_table[lenght] = { //Specify table's length according to number of commands used
-		{0x2700, Settings }, // Command's name can be changed
-		{0x2702, PWM }
+
+void PinConfigurationReceivedHandler (unsigned char*pData, unsigned char len);
+
+const MDK_REGISTER_CMD pin_configuration[1] = {
+        {0x2700, PinConfigurationReceivedHandler}
 };
 
 void np_api_setup() {
-	//Libraries, divers and PIN initialization
-	//np_api_set_app_version(x, x, x); -- optional
 
 	pinMode(0, INPUT);
 	pinMode(1, INPUT);
@@ -45,97 +45,126 @@ void np_api_setup() {
 	pinMode(14, INPUT);
 	pinMode(15, INPUT);
 
-	// If the command number is out of the range 0x2700 - 0x27ff, a FAIL message is displayed
-	// Handle the fail event here!
-
-	if ( np_api_register((MDK_REGISTER_CMD*)my_cmd_func_table, lenght) == MDK_REGISTER_FAIL ) { //communication check
+	if ( np_api_register((MDK_REGISTER_CMD*)pin_configuration, 1) == MDK_REGISTER_FAIL ) {
 	}
-
-	// After setting this command, np_api_loop() will run just once
-	//np_api_pm_automode_set();
 }
 
+/*
+ * receive data from tile, detect pin type and set pin type to corresponding pin
+ */
+void PinConfigurationReceivedHandler (unsigned char*pData, unsigned char len) {
+    // update pin type in configuration bytes
+    unsigned int pin_number = pData[0];
+    unsigned int pin_type = pData[1];
+    configuration[pin_number] = pin_type;
 
-void memcpy(void *dest, void *src, unsigned int n)
-{
-   // Typecast src and dest addresses to (char *)
-   char *csrc = (char *)src;
-   char *cdest = (char *)dest;
-
-   // Copy contents of src[] to dest[]
-   for (int i=0; i<n; i++) {
-       cdest[i] = csrc[i];
-   }
-}
-
-int memcmp(const void *x, const void *y, unsigned int n)
-{
-    const int* x8 = (const int*)x;
-    const int* y8 = (const int*)y;
-    unsigned int i;
-    for(i=0; i<n; i++) {
-        if(x8[i] < y8[i])
-            return -1;
-        else if(x8[i] > y8[i])
-            return 1;
+    // set pin to value if applicable (GPIO out - 1 or PWM - 3)
+    if(pin_type == GPIO_IN || pin_type == ADC) {
+        pinMode(pin_number, INPUT);
+    } else if(pin_type == GPIO_OUT) {
+        pinMode(pin_number, OUTPUT);
+        digitalWrite(pin_number, pData[2]);
+    } else if(pin_type == PWM) {
+        //set frequency hz
+        analogFrequencySet(4,180);
+        analogWrite(pin_number, pData[2]);
     }
-    return 0;
+}
+
+void add_to_send_buffer(unsigned char* update) {
+    // add 4 byte array of pin description to send buffer
+    unsigned int current_index = updated_pins * PIN_UPDATE_LENGTH;
+    for(unsigned int i = 0; i < PIN_UPDATE_LENGTH; i++) {
+        send_buffer[current_index + i] = update[i];
+    }
+}
+
+//update PIN information
+void make_pin_update(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
+    // form 4 byte array of pin description
+    unsigned char update[4] = {0};
+    update[0] = pin_number;
+    update[1] = pin_type;
+
+    //fill buffer to send to tile on GPIO IN and ADC modes
+    if(pin_type == GPIO_IN) {
+        update[2] = value1;
+    } else if(pin_type == ADC) {
+        update[2] = value1;
+        update[3] = value2;
+    }
+
+    add_to_send_buffer(update);
+}
+
+// store pin information to send to tile - 4 byte per PIN configuration
+bool send_pin_data(int pin_number, int pin_type, unsigned char value1, unsigned char value2) {
+    // TODO: improve cash mapping to make it simpler and easier to understand
+    unsigned int cache_index;
+    if(pin_number <= 2) {
+        // For first 3 pins each takes two bytes in cash
+        cache_index = pin_number * 2;
+    } else {
+        // For rest of pins we need to shift 3 additional bytes for first 3 pins and skip pin 3
+        cache_index = pin_number + 2;
+    }
+    //fill pin update on GPIO input and ADC modes
+    if(pin_type == GPIO_IN) {
+        if(cache[cache_index] != value1) {
+            make_pin_update(pin_number, pin_type, value1, 0x00);
+            cache[cache_index] = value1;
+            return true;
+        }
+    } else if(pin_type == ADC) {
+        if(cache[cache_index] != value1 || cache[cache_index + 1] != value2) {
+            make_pin_update(pin_number, pin_type, value1, value2);
+            cache[cache_index] = value1;
+            cache[cache_index + 1] = value2;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void np_api_loop() {
-	// This loop will run continuously while the MCU is not in sleep mode or has a stop condition
+    updated_pins = 0;
+    //select data to send to tile when PIN type is GPIO OUT or ADC
+	for(unsigned int pin_number=0; pin_number<CONFIGURATION_LENGTH; pin_number++) {
+	    //skip PIN 3 as is not in use
+	    if(pin_number == 3) continue;
 
-	/*SEND command -- use 0x2800
-	*np_api_upload(0x2800, "I am sensor value!", 2) -- sensor value is unsigned char
-	*
-	*np_api_pm_automode_set(void) -- power save mode
-	**In auto power save mode, the loop runs once
-	*to run it one more time call "np_api_run_loop_once();"
-	*To exit auto power save mode call "np_api_pm_automode_clear()"
-	*delay(10);
-	*/
+	    bool is_updated;
+	    if(configuration[pin_number] == GPIO_IN) {
+	        // send GPIO input value
+	        unsigned char value = digitalRead(pin_number);
+	        is_updated = send_pin_data(pin_number, GPIO_IN, value, 0x00);
+	    } else if(configuration[pin_number] == ADC) {
+	        // send ADC value
+	        unsigned int value = analogRead(pin_number);
+	        unsigned char upper_byte = (value >> 8) & 0xff;
+	        unsigned char lower_byte = value & 0xff;
+	        is_updated = send_pin_data(pin_number, ADC, upper_byte, lower_byte);//lower_byte);
+	    }
 
-	unsigned char send = 0;
+	    if(is_updated) {
+	        updated_pins++;
+	    }
+	}
+	//send data to tile just when PIN type is different than previous PIN configuration
+	if(updated_pins != 0) {
+	    int data_length = updated_pins * 4;
 
-	unsigned char inputvalue;
-	unsigned int i;
-	for ( i = 0; i < PIN_NUMBERS; i ++ ) {	//fill in pin information
-			//read GPIO input values
-			if ( GPIO_Pins[i] == 1 ){
-				//first 3 pins can be ADC, each one is 2 Byte length
-				if ( i < 3) {
-					inputvalue = digitalRead(i);
-					sender_buffer[i*2+1] = inputvalue; //Remaining PINS are 1 Byte length
-				} else {
-					inputvalue = digitalRead(i);
-					sender_buffer[i+3] = inputvalue;
-				}
-			//Read ADC values
-			} else if ( GPIO_Pins[i] == 3 ){
-				unsigned int value = analogRead(i);
-				//first three pins can be ADC, and each of them got 2 Bytes space but ADC is 10 bits
-				sender_buffer[i*2] = (value>>8)&0xff; //store most 8 significant bits and send it to sender buffer
-				sender_buffer[i*2+1] = value&0xff; //get remaining bits (2) and send value to following buffer element
-			}
+	    np_api_upload(0x2800, send_buffer, data_length);
 	}
 
-	// Checking if our new data somehow different from old data
-	int changes = memcmp(old_sender_buffer, sender_buffer, sizeof(sender_buffer));
-	// if there are changes
-	if(changes != 0) {
-	    // saving new old buffer
-	    memcpy(old_sender_buffer, sender_buffer, sizeof(sender_buffer));
-	    // and sending data
-	    np_api_upload(0x2800, sender_buffer, PIN_NUMBERS + 3);
-	}
 
-	delay(500);
+	delay(150);
 }
 
+
 void np_api_start() {
-	//Start module's function
 }
 
 void np_api_stop() {
-	// Stop module's function
 }
